@@ -8,9 +8,25 @@ TICK, PLAYER_SPEED, BULLET_SPEED = 0.09, 260, 620
 MUSHROOM_HP = 4
 
 
+FLASH_MS = 120
+_flash = {"hp": None, "until": 0}
+
+
+def flash_mushroom(hp):
+    """Remember that a mushroom was just hit and now has `hp` left, so it can flash white briefly."""
+    _flash["hp"] = hp
+    _flash["until"] = pygame.time.get_ticks() + FLASH_MS
+
+
 def mushroom_color(hp):
-    """Return an (r, g, b) colour for a mushroom with the given hit points, or None for the default."""
-    pass
+    """Return an (r, g, b) colour for a mushroom with the given hit points, or None for the default.
+
+    A freshly hit mushroom flashes white for FLASH_MS milliseconds. The function only receives the
+    remaining HP, so the flash is matched on HP: any mushroom with exactly that HP flashes.
+    """
+    if hp == _flash["hp"] and pygame.time.get_ticks() < _flash["until"]:
+        return (255, 255, 255)
+    return None
 
 
 def on_segment_hit(segment, score):
@@ -73,6 +89,8 @@ class Game:
         if self.mushrooms[cell] <= 0:
             del self.mushrooms[cell]
             self.score += 5
+        else:
+            flash_mushroom(self.mushrooms[cell])
 
     def split_chain(self, chain, index):
         segment = chain[index]
