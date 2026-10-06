@@ -29,9 +29,54 @@ def mushroom_color(hp):
     return None
 
 
+sparks = []   # short-lived particles: [x, y, vx, vy, life, colour]
+popups = []   # floating score labels: [x, y, life, text, colour]
+SPARK_LIFE = 0.5
+_popup_font = None
+
+
 def on_segment_hit(segment, score):
-    """Called whenever a centipede segment is shot; add sparkles, sounds, or bonus points here."""
-    pass
+    """Called whenever a centipede segment is shot: burst of sparks plus a floating +points label.
+
+    A head shot (flagged by split_chain as segment.was_head) gets a bigger, golden burst.
+    """
+    x = segment.col * CELL + CELL // 2
+    y = segment.row * CELL + CELL // 2
+    head = getattr(segment, "was_head", False)
+    colours = [(255, 230, 90), (255, 255, 255), (255, 160, 40)] if head else [(120, 255, 130), (255, 255, 255), (80, 220, 90)]
+    for _ in range(20 if head else 10):
+        angle = random.uniform(0, 6.2832)
+        speed = random.uniform(60, 220 if head else 160)
+        direction = pygame.math.Vector2(1, 0).rotate_rad(angle)
+        vx, vy = direction.x * speed, direction.y * speed
+        sparks.append([x, y, vx, vy, SPARK_LIFE * random.uniform(0.6, 1.0), random.choice(colours)])
+    popups.append([x, y - 6, 0.8, "+100" if head else "+10", colours[0]])
+
+
+def update_sparks(dt):
+    """Advance and expire sparks and popups (called every frame from Game.update)."""
+    for sp in sparks:
+        sp[0] += sp[2] * dt
+        sp[1] += sp[3] * dt
+        sp[4] -= dt
+    sparks[:] = [sp for sp in sparks if sp[4] > 0]
+    for pu in popups:
+        pu[1] -= 30 * dt
+        pu[2] -= dt
+    popups[:] = [pu for pu in popups if pu[2] > 0]
+
+
+def draw_sparks(screen):
+    """Draw sparks and popups (called from Game.draw)."""
+    global _popup_font
+    for x, y, _vx, _vy, life, colour in sparks:
+        size = 2 if life < SPARK_LIFE * 0.4 else 3
+        pygame.draw.rect(screen, colour, (int(x), int(y), size, size))
+    if popups and _popup_font is None:
+        _popup_font = pygame.font.Font(None, 22)
+    for x, y, _life, text, colour in popups:
+        label = _popup_font.render(text, True, colour)
+        screen.blit(label, label.get_rect(center=(int(x), int(y))))
 
 
 def wave_speed_bonus(wave):
@@ -63,6 +108,8 @@ class Game:
 
     def reset(self):
         self.score, self.lives, self.wave, self.state = 0, 3, 1, "play"
+        sparks.clear()
+        popups.clear()
         self.mushrooms = {}
         for _ in range(45):
             self.mushrooms[(random.randint(1, ZONE_TOP - 2), random.randint(0, COLS - 1))] = MUSHROOM_HP
@@ -99,6 +146,7 @@ class Game:
         self.chains.extend(part for part in (left, right) if part)
         self.mushrooms[(segment.row, segment.col)] = MUSHROOM_HP
         self.score += 100 if index == 0 else 10
+        segment.was_head = index == 0
         on_segment_hit(segment, self.score)
 
     def update_bullet(self, dt):
@@ -120,6 +168,7 @@ class Game:
                         return
 
     def update(self, dt, keys):
+        update_sparks(dt)
         if self.state != "play":
             return
         self.invulnerable = max(0.0, self.invulnerable - dt)
@@ -158,6 +207,7 @@ class Game:
             for index, segment in enumerate(chain):
                 center = (segment.col * CELL + CELL // 2, segment.row * CELL + CELL // 2)
                 pygame.draw.circle(screen, (240, 200, 60) if index == 0 else (80, 220, 90), center, CELL // 2)
+        draw_sparks(screen)
         if self.bullet:
             pygame.draw.rect(screen, (255, 255, 255), (self.bullet.x - 1, self.bullet.y - 6, 3, 10))
         if self.invulnerable <= 0 or int(self.invulnerable * 10) % 2 == 0:
