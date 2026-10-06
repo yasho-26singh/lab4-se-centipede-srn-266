@@ -80,8 +80,12 @@ def draw_sparks(screen):
 
 
 def wave_speed_bonus(wave):
-    """Return an extra tick-rate multiplier for centipede segments at the given wave, or None for the default speed."""
-    pass
+    """Return an extra tick-rate multiplier for centipede segments at the given wave, or None for the default speed.
+
+    Wave 1 runs at normal speed (x1.00); every later wave is 15% faster than the base speed
+    (wave 2 = x1.15, wave 3 = x1.30, ...).
+    """
+    return 1 + 0.15 * (wave - 1)
 
 
 class Segment:
